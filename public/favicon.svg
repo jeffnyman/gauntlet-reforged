@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><title>Gauntlet Reforged</title><defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE08A"></stop>
+      <stop offset="45%" stop-color="#D9992B"></stop>
+      <stop offset="100%" stop-color="#8A5A12"></stop>
+    </linearGradient>
+  </defs><rect x="1" y="1" width="30" height="30" rx="7" fill="#0B0505"></rect><rect x="1" y="1" width="30" height="30" rx="7" fill="none" stroke="#4A1010" stroke-width="1"></rect><g transform="rotate(45 16 16)" stroke="#3B0F0F" stroke-width="1" stroke-linejoin="round">
+    <path fill-rule="evenodd" fill="url(#gold)" d="M15.2,16 A6.2,6.2 0 1,0 2.8,16 A6.2,6.2 0 1,0 15.2,16 Z
+             M12.1,16 A3.1,3.1 0 1,0 5.9,16 A3.1,3.1 0 1,0 12.1,16 Z"></path>
+    <rect x="9" y="14.4" width="15.5" height="3.2" rx="0.6" fill="url(#gold)"></rect>
+    <rect x="20" y="17.6" width="2.8" height="3.4" rx="0.4" fill="url(#gold)"></rect>
+    <rect x="24" y="17.6" width="2.8" height="5.2" rx="0.4" fill="url(#gold)"></rect>
+  </g></svg>

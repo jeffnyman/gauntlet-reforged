@@ -1,0 +1,21 @@
+{
+  "name": "gauntlet-reforged",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "author": {
+    "name": "Jeff Nyman",
+    "email": "jeffnyman@gmail.com",
+    "url": "https://github.com/jeffnyman"
+  },
+  "description": "A Gauntlet implementation, reforged for the web.",
+  "scripts": {
+    "dev": "vite --host --open",
+    "build:engine": "node scripts/build.js",
+    "build": "npm run build:engine && vite build",
+    "preview": "vite preview --host --open"
+  },
+  "devDependencies": {
+    "vite": "^8.2.0"
+  }
+}

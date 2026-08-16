@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en-US" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Gauntlet Reforged</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="author" content="Jeff Nyman" />
+    <meta name="description" content="Gauntlet recreation in JavaScript." />
+    <meta name="keywords" content="Gauntlet, Atari, retrogaming" />
+    <meta name="apple-mobile-web-app-title" content="Gauntlet" />
+    <link
+      rel="canonical"
+      href="https://jeffnyman.github.io/gauntlet-reforged"
+    />
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="stylesheet" href="styles/gauntlet.css" />
+  </head>
+
+  <body>
+    <div id="gauntlet">
+      <img id="booting" src="images/booting.gif" />
+      <img id="splash" src="images/splash.jpg" />
+
+      <canvas id="canvas">
+        <div class="unsupported">
+          Gauntlet requires a browser that supports &lt;canvas&gt;.
+        </div>
+      </canvas>
+
+      <div id="help" style="display: none"></div>
+
+      <div id="scoreboard">
+        <img id="logo" src="images/logo.png" />
+
+        <h3 class="level">&nbsp;</h3>
+
+        <hr />
+
+        <div class="high">High Score: <span class="value">000000</span></div>
+
+        <div
+          id="restart"
+          title="clear saved progress and start from Training One"
+        >
+          Start from Level 1
+        </div>
+
+        <div id="warrior" class="player">
+          <div class="name">Warrior</div>
+          <div class="score">
+            <div class="label">Score</div>
+            <div class="value">000000</div>
+          </div>
+          <div class="health">
+            <div class="label">Health</div>
+            <div class="value">000</div>
+          </div>
+          <div class="treasure">
+            <img class="key" src="images/key.png" /><img
+              class="key"
+              src="images/key.png"
+            /><img class="key" src="images/key.png" /><img
+              class="key"
+              src="images/key.png"
+            />
+            <img class="potion" src="images/potion.png" /><img
+              class="potion"
+              src="images/potion.png"
+            /><img class="potion" src="images/potion.png" /><img
+              class="potion"
+              src="images/potion.png"
+            />
+          </div>
+          <div class="press">PRESS <b>1</b></div>
+        </div>
+
+        <div id="valkyrie" class="player">
+          <div class="name">Valkyrie</div>
+          <div class="score">
+            <div class="label">Score</div>
+            <div class="value">000000</div>
+          </div>
+          <div class="health">
+            <div class="label">Health</div>
+            <div class="value">000</div>
+          </div>
+          <div class="treasure">
+            <img class="key" src="images/key.png" /><img
+              class="key"
+              src="images/key.png"
+            /><img class="key" src="images/key.png" /><img
+              class="key"
+              src="images/key.png"
+            />
+            <img class="potion" src="images/potion.png" /><img
+              class="potion"
+              src="images/potion.png"
+            /><img class="potion" src="images/potion.png" /><img
+              class="potion"
+              src="images/potion.png"
+            />
+          </div>
+          <div class="press">PRESS <b>2</b></div>
+        </div>
+
+        <div id="wizard" class="player">
+          <div class="name">Wizard</div>
+          <div class="score">
+            <div class="label">Score</div>
+            <div class="value">000000</div>
+          </div>
+          <div class="health">
+            <div class="label">Health</div>
+            <div class="value">000</div>
+          </div>
+          <div class="treasure">
+            <img class="key" src="images/key.png" /><img
+              class="key"
+              src="images/key.png"
+            /><img class="key" src="images/key.png" /><img
+              class="key"
+              src="images/key.png"
+            />
+            <img class="potion" src="images/potion.png" /><img
+              class="potion"
+              src="images/potion.png"
+            /><img class="potion" src="images/potion.png" /><img
+              class="potion"
+              src="images/potion.png"
+            />
+          </div>
+          <div class="press">PRESS <b>3</b></div>
+        </div>
+
+        <div id="elf" class="player">
+          <div class="name">Elf</div>
+          <div class="score">
+            <div class="label">Score</div>
+            <div class="value">000000</div>
+          </div>
+          <div class="health">
+            <div class="label">Health</div>
+            <div class="value">000</div>
+          </div>
+          <div class="treasure">
+            <img class="key" src="images/key.png" /><img
+              class="key"
+              src="images/key.png"
+            /><img class="key" src="images/key.png" /><img
+              class="key"
+              src="images/key.png"
+            />
+            <img class="potion" src="images/potion.png" /><img
+              class="potion"
+              src="images/potion.png"
+            /><img class="potion" src="images/potion.png" /><img
+              class="potion"
+              src="images/potion.png"
+            />
+          </div>
+          <div class="press">PRESS <b>4</b></div>
+        </div>
+
+        <div
+          id="sound"
+          class="on"
+          title="toggle music and fx"
+          style="display: none"
+        ></div>
+      </div>
+
+      <div id="difficulty" title="toggle hard mode"></div>
+
+      <div id="curtain">
+        <div class="begin">Prepare for Battle</div>
+        <div class="hint">click to begin</div>
+      </div>
+
+      <div id="instructions">
+        P1: press <b>1-4</b> to join, <b>ARROWS</b> move, <b>SPACE</b> fire, <b>ENTER</b> potion &nbsp;|&nbsp;<br>
+        P2: press <b>1-4</b> again (or <b>5-8</b>), <b>WASD</b> move, <b>F</b> fire, <b>G</b> potion &nbsp;|&nbsp;<br>
+        Gamepad (if connected): <b>A/B/X/Y</b> to join, stick/d-pad move, <b>RB</b> fire, <b>LB</b> potion
+      </div>
+    </div>
+
+    <script src="scripts/vendor.js"></script>
+    <script src="scripts/game.js"></script>
+    <script src="scripts/gauntlet.js"></script>
+    <script>
+      Game.run(Gauntlet);
+    </script>
+  </body>
+</html>

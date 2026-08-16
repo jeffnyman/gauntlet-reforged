@@ -1,0 +1,429 @@
+:root {
+  /* character colors, matched to the arcade sprites */
+  --warrior: #F90503;
+  --valkyrie: #08B4F0;
+  --wizard: #F5FC00;
+  --elf: #00FF03;
+
+  /* the arcade yellow, reused as the general ui accent */
+  --accent: var(--wizard);
+
+  /* ui greys */
+  --ink: #CCC;        /* default body text */
+  --ink-bright: #DDD; /* emphasised text */
+  --ink-dim: #B0B0B0; /* secondary text */
+  --rule: #111;       /* hairline separators */
+  --edge: #222;       /* inactive player border */
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+img {
+  border: 0;
+}
+
+body {
+  background: black;
+  color: var(--ink);
+  user-select: none;
+}
+
+/* One fluid unit drives the entire layout. --h is the height of the play area.
+   The canvas is 4:3 to match VIEWPORT (32x24 tiles, gauntlet.js:13) so it is
+   never stretched, the scoreboard takes a further --h/3, and every type size
+   is a ratio of --h. The three terms of --h are, in order: width-limited (the
+   whole box is --h * 5/3 wide), height-limited (the ~12% headroom covers the
+   margins plus the instructions strip below the box), and a cap so the game
+   does not become absurd on a 4K or ultrawide display.
+
+   font-size: 0 here is deliberate — #canvas and #scoreboard are inline-blocks,
+   so any inherited font size would insert a whitespace gap between them and
+   push the scoreboard onto its own line. Children that render text set their
+   own size from --fs below. */
+
+#gauntlet {
+  --h: clamp(384px, min(57vw, calc(89vh - 32px)), 1152px);
+  --fs: calc(var(--h) / 36);
+  --canvas-w: calc(var(--h) * 4 / 3);
+
+  width: calc(var(--h) * 5 / 3);
+  height: var(--h);
+  font-size: 0;
+
+  margin: 1rem auto;
+  position: relative;
+  background: black;
+}
+
+/* these two float over the canvas, so their offsets are a share of the canvas
+   width rather than of #gauntlet, which now also contains the scoreboard */
+#booting {
+  position: absolute;
+  width: calc(var(--canvas-w) * 0.06);
+  left: calc(var(--canvas-w) * 0.3);
+  top: 40%;
+}
+
+/* the splash art is square, so letterbox it inside the 4:3 canvas area rather
+   than stretch it — the pillarboxing is invisible against the black backdrop */
+#splash {
+  width: var(--canvas-w);
+  height: var(--h);
+  object-fit: contain;
+  position: absolute;
+  display: none;
+}
+
+#canvas {
+  width: var(--canvas-w);
+  height: var(--h);
+  display: inline-block;
+  vertical-align: top;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+#help {
+  position: absolute;
+  width: calc(var(--canvas-w) * 0.33);
+  left: calc(var(--canvas-w) * 0.22);
+  top: 30%;
+  text-align: center;
+  font-size: calc(var(--fs) * 1.5);
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.75);
+  border: 6px solid black;
+  color: black;
+  padding: 1em;
+  display: inline-block;
+  border-radius: 0.5em;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+#scoreboard {
+  width: calc(var(--h) / 3);
+  height: var(--h);
+  font-size: var(--fs);
+  display: inline-block;
+  vertical-align: top;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+/* sized independently of --fs: this sits below the box with the whole width to
+   play with and only three short lines, so it is not competing for space the
+   way the scoreboard is. Floor keeps it legible on small windows; the ceiling
+   stops it overpowering the scoreboard on very large ones. */
+#instructions {
+  font-style: italic;
+  color: var(--ink-dim);
+  font-size: clamp(13px, calc(var(--h) / 34), 26px);
+  margin-left: 1em;
+  margin-top: 0.5em;
+}
+
+#instructions b {
+  color: var(--ink-bright);
+}
+
+#gauntlet.menu #splash {
+  display: inline-block;
+}
+
+#gauntlet.help #canvas {
+  opacity: 0.5;
+}
+
+#scoreboard {
+  text-align: center;
+}
+
+#scoreboard #logo {
+  width: 88%;
+}
+
+#scoreboard .level {
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+
+#scoreboard hr {
+  width: 50%;
+  margin: 0.5em auto;
+  border: 1px solid var(--rule);
+  border-top: 0px;
+  border-left: 0px;
+  border-right: 0px;
+}
+
+#scoreboard .high {
+  margin-bottom: 0.5em;
+  font-size: 82.5%;
+  opacity: 0.5;
+}
+
+#scoreboard .high .value {
+  font-weight: bold;
+}
+
+#scoreboard #restart {
+  display: none;
+  margin-bottom: 1em;
+  font-size: 82.5%;
+  opacity: 0.5;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+#scoreboard #restart:hover {
+  opacity: 1;
+}
+
+#gauntlet.menu #scoreboard #restart {
+  display: block;
+}
+
+/* only offer this before a game is in progress */
+
+#scoreboard .player {
+  height: 6em;
+  border: 2px solid var(--edge);
+  margin: 0.6em 0.5em;
+  padding: 0.5em 0;
+  opacity: 0.5;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+#scoreboard .player .name {
+  font-weight: bold;
+}
+
+#scoreboard .player .score {
+  display: none;
+}
+
+#scoreboard .player .health {
+  display: none;
+}
+
+#scoreboard .player .treasure {
+  display: none;
+}
+
+#scoreboard .player .press {
+  color: var(--ink-dim);
+  margin-top: 1em;
+}
+
+#scoreboard .player .press b {
+  color: var(--player, white);
+}
+
+#scoreboard .player.active {
+  opacity: 1.0;
+}
+
+#scoreboard .player.active .score {
+  display: inline-block;
+  text-align: right;
+  margin-right: 1em;
+}
+
+#scoreboard .player.active .health {
+  display: inline-block;
+  text-align: left;
+  margin-left: 1em;
+}
+
+#scoreboard .player.active .treasure {
+  display: block;
+  text-align: left;
+  margin: 0 0.5em;
+  margin-top: 0.25em;
+}
+
+#scoreboard .player.active .label {
+  opacity: 0.7;
+  font-size: smaller;
+}
+
+#scoreboard .player.active .value {
+  opacity: 1.0;
+  font-weight: bold;
+}
+
+#scoreboard .player .treasure img.key {
+  margin-right: 2px;
+  width: 1em;
+  height: 1em;
+}
+
+#scoreboard .player .treasure img.potion {
+  margin-left: 0px;
+  float: right;
+  width: 1em;
+  height: 1em;
+}
+
+/* --player carries each character's color down to the rules below. It is set
+   on the id selectors rather than on .player because the low-health flash
+   (gauntlet.js:1675) snapshots its start colors with animator.js, which
+   temporarily replaces the element's className with "weak" — class-based
+   rules do not match at that moment, but id-based ones still do. */
+
+#scoreboard #warrior {
+  --player: var(--warrior);
+  color: var(--player);
+}
+
+#scoreboard #valkyrie {
+  --player: var(--valkyrie);
+  color: var(--player);
+}
+
+#scoreboard #wizard {
+  --player: var(--wizard);
+  color: var(--player);
+}
+
+#scoreboard #elf {
+  --player: var(--elf);
+  color: var(--player);
+}
+
+#scoreboard .player.active {
+  border-color: var(--player);
+}
+
+#scoreboard .weak {
+  background-color: var(--player);
+}
+
+#scoreboard .high.warrior .value {
+  color: var(--warrior);
+}
+
+#scoreboard .high.valkyrie .value {
+  color: var(--valkyrie);
+}
+
+#scoreboard .high.wizard .value {
+  color: var(--wizard);
+}
+
+#scoreboard .high.elf .value {
+  color: var(--elf);
+}
+
+/* the join keys are only bound in 'menu' and 'playing' (gauntlet.js:248-292),
+   so only offer the hint there — and never on a slot that is already taken */
+
+#gauntlet #scoreboard .player .press {
+  display: none;
+}
+
+#gauntlet.menu #scoreboard .player .press,
+#gauntlet.playing #scoreboard .player .press {
+  display: block;
+}
+
+#gauntlet #scoreboard .player.active .press {
+  display: none;
+}
+
+#sound {
+  width: 24px;
+  height: 24px;
+  background: url(../images/mute.png);
+  display: inline-block;
+  cursor: pointer;
+  position: absolute;
+  right: 1em;
+}
+
+#sound.on {
+  background-position: 0 0;
+}
+
+#sound.off {
+  background-position: -24px 0;
+}
+
+/* difficulty toggle: overlaid on the play area at the menu, which has free space,
+   rather than added to the scoreboard column - that has no spare vertical room
+   (see the .player sizing notes). Sits under #curtain's z-index so it cannot be
+   clicked before the game has been started. */
+#difficulty {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: 4%;
+  width: var(--canvas-w);
+  z-index: 50;
+  text-align: center;
+  font-size: calc(var(--fs) * 0.9);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+#gauntlet.menu #difficulty {
+  display: block;
+}
+
+#difficulty.hard {
+  color: var(--warrior);
+  font-weight: bold;
+}
+
+#difficulty:hover {
+  color: white;
+}
+
+#curtain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  cursor: pointer;
+  z-index: 100;
+  font-size: var(--fs);
+}
+
+#curtain .begin {
+  color: var(--accent);
+  font-size: 1.8em;
+  font-weight: bold;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+#curtain .hint {
+  color: var(--ink-dim);
+  font-size: 0.8em;
+  font-style: italic;
+  margin-top: 1em;
+}
+
+#curtain:hover .begin {
+  color: white;
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.7);
+}
