@@ -1,6 +1,9 @@
 <h1 align="center">
-    <img src="assets/gauntlet-reforged.png" alt="Gauntlet Reforged" />
+  <img src="assets/gauntlet-reforged.png" alt="Gauntlet Reforged" />
 </h1>
+
+
+<p align="center"><img src="https://img.shields.io/badge/NO%20AI-100%25%20Made%20By%20Human-2e7d32?style=for-the-badge&labelColor=8b1a1a" alt="No AI - 100% Made By Human"/></p>
 
 This is a fan-made homage to *Gauntlet*, the 1985 Atari Games coin-op that popularized
 cooperative dungeon-crawling (Warrior, Valkyrie, Wizard, Elf, and all). Atari Games released the original; Midway Games later acquired Atari's assets and continued the series (*Gauntlet Legends*, etc.) through the late '90s and 2000s; and following Midway's 2009 bankruptcy, the *Gauntlet* IP passed to Warner Bros. Entertainment, managed today through Warner Bros. Interactive Entertainment. *Gauntlet* is listed by name among the acquired titles in [Schedule 2.1 of the May 20, 2009 Asset Purchase Agreement](https://www.sec.gov/Archives/edgar/data/1022080/000095012309009497/c51466exv2w1.htm) filed with the SEC.
