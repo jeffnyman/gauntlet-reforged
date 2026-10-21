@@ -1,9 +1,6 @@
 <h1 align="center">
-  <img src="assets/gauntlet-reforged.png" alt="Gauntlet Reforged" />
+  <img src="assets/gauntlet-reforged.png" alt="Gauntlet Reforged" width="652" height="217" />
 </h1>
-
-
-<p align="center"><img src="https://img.shields.io/badge/NO%20AI-100%25%20Made%20By%20Human-2e7d32?style=for-the-badge&labelColor=8b1a1a" alt="No AI - 100% Made By Human"/></p>
 
 This is a fan-made homage to *Gauntlet*, the 1985 Atari Games coin-op that popularized
 cooperative dungeon-crawling (Warrior, Valkyrie, Wizard, Elf, and all). Atari Games released the original; Midway Games later acquired Atari's assets and continued the series (*Gauntlet Legends*, etc.) through the late '90s and 2000s; and following Midway's 2009 bankruptcy, the *Gauntlet* IP passed to Warner Bros. Entertainment, managed today through Warner Bros. Interactive Entertainment. *Gauntlet* is listed by name among the acquired titles in [Schedule 2.1 of the May 20, 2009 Asset Purchase Agreement](https://www.sec.gov/Archives/edgar/data/1022080/000095012309009497/c51466exv2w1.htm) filed with the SEC.
@@ -12,7 +9,7 @@ This project is an unofficial re-implementation built from scratch in JavaScript
 
 It's worth calling out that this is a partial implementation, not a full recreation of the arcade game. There are seven training levels that teach the mechanics, followed by ten dungeon levels, with a simple win screen after the last one. None of the later arcade sequels' features are here.
 
-# 🕹️ Playing
+# Playing
 
 Up to two players share the keyboard, plus one per connected gamepad.
 
@@ -42,7 +39,7 @@ several directions at once.
 Toggle it from the menu (the difficulty line under the play area); the choice is
 remembered between sessions.
 
-# 🛠️ Developer Options
+# Developer Options
 
 ## God mode
 
@@ -91,7 +88,7 @@ game.debugFloor();     // cycle floor tilesets; pass true to cycle backwards
 game.resetLevel();     // clear the saved checkpoint, keep the high score
 ```
 
-# 🏗️ Building
+# Building
 
 ```bash
 npm install
@@ -132,7 +129,7 @@ Two things worth knowing:
   `vendor.js` / `game.js` alongside the sources you changed, or the deployed game will run
   stale code.
 
-# 🙏 Attributions
+# Attributions
 
 * All music is licensed, royalty-free, from [Lucky Lion Studios](http://luckylionstudios.com/) for the original project. That license has been extended to this project as well. If you re-use this project for your own purposes you must license your own music or negotiate to have the music apply to your project.
 
@@ -140,7 +137,7 @@ Two things worth knowing:
 
 * Background tilesets (walls, floors, doors) are provided by [Open Game Art](http://opengameart.org/content/gauntlet-like-tiles), which have been placed in the public domain.
 
-## 👨‍💻 Author
+## Author
 
 <p align="center">
   Made with 🤍 by <a href="https://github.com/jeffnyman">Jeff Nyman</a>
@@ -161,7 +158,7 @@ Two things worth knowing:
   </a>
 </p>
 
-## ☦️ Doxazein (δοξάζειν)
+## Doxazein (δοξάζειν)
 
 <p align="center">
   חֶסֶד וֶאֱמֶת אַל־יַעַזְבֻךָ קָשְׁרֵם עַל־גַּרְגְּרֹתֶיךָ כָּתְבֵם עַל־לוּחַ לִבֶּךָ
@@ -174,7 +171,7 @@ write them upon the table of thine heart."<br>
 <em>Proverbs 3:3</em>
 </p>
 
-## ⚖️ License
+## License
 
 The code used in this project is licensed under the [MIT license](https://github.com/jeffnyman/gauntlet-reforged/blob/main/LICENSE).
 
