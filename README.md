@@ -88,6 +88,31 @@ game.debugFloor();     // cycle floor tilesets; pass true to cycle backwards
 game.resetLevel();     // clear the saved checkpoint, keep the high score
 ```
 
+## Levels
+
+Each level is a small PNG in `public/levels/`, one pixel per tile, listed by URL in the
+level table near the top of `public/scripts/gauntlet.js`. The red and green channels of a
+pixel say what the tile is, and for monsters, generators and treasure the high four bits
+of the blue channel pick which one:
+
+| Color | Tile | Blue `0x00`, `0x10`, `0x20` … picks |
+|---|---|---|
+| `#000000` black | Nothing (outside the map) | |
+| `#C0C000` yellow | Door | |
+| `#404000` dark yellow | Wall | |
+| `#F00000` red | Monster generator | ghost, demon, grunt, wizard, death |
+| `#400000` dark red | Monster | ghost, demon, grunt, wizard, death |
+| `#00F000` green | Player start | |
+| `#008000` medium green | Treasure | health, poison, three foods, key, potion, gold |
+| `#004000` dark green | Exit | |
+
+Any other color is plain floor.
+
+`public/levels/reference.png` is a visual version of that table: each color square with the
+sprite it turns into beside it. The game never loads it; it is there to help when making
+or fixing a level. To try a new level, add it to the level table and open it with
+`?level=N`.
+
 # Building
 
 ```bash
