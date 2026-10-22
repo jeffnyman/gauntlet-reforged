@@ -131,6 +131,8 @@ Two things worth knowing:
 
 # Attributions
 
+* Jake Gordon did his own version that he called [javascript-gauntlet](https://github.com/jakesgordon/javascript-gauntlet/). His was actually a combination of Ruby and JavaScript. I refer to this as "original project" because I quickly learned there was a lot of good stuff in it but a whole lot that was left unimplemented. I also learned quite a lot from Alex's [Gauntlet FPGA version](https://github.com/d18c7db/Gauntlet_FPGA). In the end I decided I want to go more with Jake's approach than with Alex's. One other project that inspired was Angelo Anthony Rettob's [Gauntlet](https://github.com/antjowie/Gauntlet). The tilesheet and spritesheet approach was almost going to be the way I went with this.
+
 * All music is licensed, royalty-free, from [Lucky Lion Studios](http://luckylionstudios.com/) for the original project. That license has been extended to this project as well. If you re-use this project for your own purposes you must license your own music or negotiate to have the music apply to your project.
 
 * All sound effects are licensed, royalty-free from [Premium Beat](https://www.premiumbeat.com/royalty-free-sfx) for the original project. That license has been extended to this project as well. If you re-use this project for your own purposes you must license your own sound effects or negotiate to have the sound effects apply to your project.
