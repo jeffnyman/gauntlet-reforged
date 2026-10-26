@@ -133,13 +133,24 @@ Gauntlet = function() {
   //   hunt     - walks over to line up a shot on a monster near the human, instead of waiting for one to line up
   //   food     - 'need' eats only below `hungry` health, 'always' eats everything it can reach, 'never' leaves it alone
   //   hungry   - health below which a 'need' eater goes looking for food
+  //   loot     - other treasure it goes out of its way for: any of 'gold', 'key', 'potion' (everything else is left for the human)
   //   wander   - heads for whichever reachable tile is farthest from the human
-  //   swarm    - monsters within 4 tiles of the human that make it use a potion (0 = never uses one)
-  //   reaction - frames between decisions (aiming is checked every frame)
+  //   rush     - heads for an exit straight away, whether or not the human is done
+  //   hide     - when monsters are near, keeps to the side of the human away from them
+  //   swarm    - monsters within `swarmRange` tiles of the human that make it use a potion (0 = never uses one)
+  //   reaction - frames between decisions about where to go
+  //   notice   - frames between looking for something to shoot (it keeps firing at what it saw in between)
+  //   aim      - chance (0-1) a target gets a well-aimed shot rather than one a direction off
+  //   careless - walks straight over treasure instead of around it, poison and keys included
   var BUDDY = {
-    GUARDIAN: { leash: 4, engage: 7, defend: 3, hunt: true,  food: 'need',   hungry: 150, wander: false, swarm: 8, reaction: 6 },
-    FOODHOG:  { leash: 8, engage: 0, defend: 4, hunt: false, food: 'always', hungry: 0,   wander: false, swarm: 0, reaction: 6 },
-    WANDERER: { leash: 0, engage: 0, defend: 4, hunt: false, food: 'need',   hungry: 150, wander: true,  swarm: 0, reaction: 6 }
+    GUARDIAN:   { leash: 4, engage: 7,  defend: 3,  hunt: true,  food: 'need',   hungry: 150, loot: [],         wander: false, rush: false, hide: false, swarm: 8, swarmRange: 4, reaction: 6,  notice: 1,  aim: 1,   careless: false },
+    FOODHOG:    { leash: 8, engage: 0,  defend: 4,  hunt: false, food: 'always', hungry: 0,   loot: [],         wander: false, rush: false, hide: false, swarm: 0, swarmRange: 4, reaction: 6,  notice: 1,  aim: 1,   careless: false },
+    WANDERER:   { leash: 0, engage: 0,  defend: 4,  hunt: false, food: 'need',   hungry: 150, loot: [],         wander: true,  rush: false, hide: false, swarm: 0, swarmRange: 4, reaction: 6,  notice: 1,  aim: 1,   careless: false },
+    GLORYHOG:   { leash: 0, engage: 12, defend: 20, hunt: true,  food: 'need',   hungry: 150, loot: ['gold'],   wander: false, rush: false, hide: false, swarm: 0, swarmRange: 4, reaction: 6,  notice: 1,  aim: 1,   careless: false },
+    RUSHER:     { leash: 6, engage: 0,  defend: 3,  hunt: false, food: 'need',   hungry: 150, loot: [],         wander: false, rush: true,  hide: false, swarm: 0, swarmRange: 4, reaction: 6,  notice: 1,  aim: 1,   careless: false },
+    FREELOADER: { leash: 2, engage: 0,  defend: 0,  hunt: false, food: 'need',   hungry: 150, loot: [],         wander: false, rush: false, hide: true,  swarm: 0, swarmRange: 4, reaction: 6,  notice: 1,  aim: 1,   careless: false },
+    PANICKER:   { leash: 5, engage: 5,  defend: 3,  hunt: false, food: 'need',   hungry: 150, loot: ['potion'], wander: false, rush: false, hide: false, swarm: 1, swarmRange: 8, reaction: 6,  notice: 1,  aim: 1,   careless: false },
+    ROOKIE:     { leash: 6, engage: 5,  defend: 3,  hunt: false, food: 'need',   hungry: 150, loot: [],         wander: false, rush: false, hide: false, swarm: 0, swarmRange: 4, reaction: 30, notice: 20, aim: 0.5, careless: true  }
   };
 
   //---------------------------------------------------------------------------
@@ -1927,6 +1938,17 @@ Gauntlet = function() {
       this.style = style;
       this.map   = null;
       this.aim   = { dx: 0, dy: 0 }; // re-used every frame to avoid GC allocations
+      this.seed  = 1;
+    },
+
+    // the buddy's own dice (mulberry32), for slips like a badly aimed shot. Seeded the same every
+    // time and kept apart from Math.random, so the slips are part of the replay and don't shift
+    // the game's own random numbers
+    random: function() {
+      var t = this.seed = (this.seed + 0x6D2B79F5) | 0;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     },
 
     // called once per frame, before the buddy's own Player.update, to set its controls
@@ -1934,6 +1956,8 @@ Gauntlet = function() {
 
       if (map !== this.map)
         this.reset(map);
+
+      this.player = me;
 
       if (!me.active())
         return this.press(me, null, false);
@@ -1993,6 +2017,8 @@ Gauntlet = function() {
       this.wanderTo  = -1;
       this.wanderEnd = 0;
       this.shooting  = null;
+      this.miss      = 0;   // -1, 0 or +1: how many directions off it is aiming at the current target
+      this.look      = 0;   // frame it next looks for something to shoot
       this.ignore    = [];  // [ target, frame it can be shot at again, ... ]
     },
 
@@ -2013,9 +2039,21 @@ Gauntlet = function() {
       return false;
     },
 
-    // food and health, never poison. Keys, potions and gold are left for the human.
+    hungry: function(me) {
+      return (this.style.food === 'always') || ((this.style.food === 'need') && (me.health < this.style.hungry));
+    },
+
+    // the treasure besides food that its `loot` trait goes after
+    loots: function(treasure) {
+      var t = treasure.type, loot = this.style.loot;
+      return ((t === TREASURE.GOLD) && (loot.indexOf('gold')   >= 0)) ||
+             (!!t.key               && (loot.indexOf('key')    >= 0)) ||
+             (!!t.potion            && (loot.indexOf('potion') >= 0));
+    },
+
+    // food and health when hungry, plus its loot. Never poison, unless it is careless (see blockout)
     wants: function(treasure, me) {
-      return !!treasure.type.health && ((this.style.food === 'always') || ((this.style.food === 'need') && (me.health < this.style.hungry)));
+      return treasure.type.health ? this.hungry(me) : this.loots(treasure);
     },
 
     blockout: function(me, human, frame, leaving) {
@@ -2027,9 +2065,9 @@ Gauntlet = function() {
           continue;
         ti = p2t(e.x) + (p2t(e.y) * this.tw);
         if (e.exit === true)
-          block[ti] = leaving ? 0 : 1;
+          block[ti] = (leaving || this.style.rush) ? 0 : 1;
         else if (e.treasure)
-          block[ti] = this.wants(e, me) ? 0 : 1;
+          block[ti] = (this.style.careless || this.wants(e, me)) ? 0 : 1;
         else
           block[ti] = 1; // doors and generators
       }
@@ -2101,13 +2139,19 @@ Gauntlet = function() {
 
       this.blockout(me, human, frame, !present);
 
-      if (style.swarm && me.potions && present && (this.crowd(human, 4) >= style.swarm))
+      if (style.swarm && me.potions && present && (this.crowd(human, style.swarmRange) >= style.swarm))
         me.nuke();
 
-      if (!present) // the human is dead or on the way out, so head for an exit
+      if (!present || style.rush) // the human is dead or on the way out (or it's a rusher), so head for an exit
         goal = this.search(from, function(ti) { return this.holds(ti, function(e) { return e.exit === true; }); }, Infinity, this.dist, this.prev);
-      else if ((style.food === 'always') || ((style.food === 'need') && (me.health < style.hungry)))
+      else if (this.hungry(me))
         goal = this.search(from, function(ti) { return this.holds(ti, function(e) { return e.treasure && !!e.type.health; }); }, 40, this.dist, this.prev);
+
+      if ((goal < 0) && present && style.loot.length)
+        goal = this.search(from, function(ti) { return this.holds(ti, function(e) { return e.treasure && this.loots(e); }.bind(this)); }, 10, this.dist, this.prev);
+
+      if ((goal < 0) && present && style.hide)
+        goal = this.hideSpot(from, human);
 
       if ((goal < 0) && present) {
         apart = this.tiles(me, human);
@@ -2145,16 +2189,44 @@ Gauntlet = function() {
       return count;
     },
 
-    // a tile within the leash from which a monster near the human is lined up for a shot
+    // a tile next to the human on the far side from the monsters near them, or -1 when there are none
+    hideSpot: function(from, human) {
+      var entities = this.map.entities, htile = this.tile(human), threats = [],
+          n = this.tw * this.th, best = -1, bestScore = -1, i, max, e, ti, score;
+      for (i = 0, max = entities.length ; i < max ; i++) {
+        e = entities[i];
+        if (e.active && e.monster && (this.tiles(e, human) <= 8))
+          threats.push(this.tile(e));
+      }
+      if (!threats.length)
+        return -1;
+      this.search(from, null, 12, this.dist, this.prev);
+      for (ti = 0 ; ti < n ; ti++) {
+        if ((this.dist[ti] < 0) || (this.apart(ti, htile) > 2))
+          continue;
+        for (score = Infinity, i = 0 ; i < threats.length ; i++)
+          score = Math.min(score, this.apart(ti, threats[i]));
+        if ((score > bestScore) || ((score === bestScore) && (this.dist[ti] < this.dist[best]))) {
+          best      = ti;
+          bestScore = score;
+        }
+      }
+      return best;
+    },
+
+    // a tile within the leash from which a monster or generator near the human (or near itself) is lined up for a shot
     huntSpot: function(from, human) {
-      var style = this.style, entities = this.map.entities, prey = [], htile = this.tile(human), n, max, e;
+      var style = this.style, entities = this.map.entities, prey = [], htile = this.tile(human), me = this.player, n, max, e;
       for (n = 0, max = entities.length ; n < max ; n++) {
         e = entities[n];
-        if (e.active && e.monster && e.type.canbeshot && (this.tiles(e, human) <= style.engage))
-          prey.push(this.tile(e));
+        if (e.active && (e.generator || (e.monster && e.type.canbeshot)) && ((this.tiles(e, human) <= style.engage) || (this.tiles(e, me) <= style.defend)))
+          prey.push(e);
       }
       if (!prey.length)
         return -1;
+      // only the nearest dozen, which keeps a search with no depth limit affordable on a crowded level
+      prey.sort(function(a, b) { return this.tiles(a, me) - this.tiles(b, me); }.bind(this));
+      prey = prey.slice(0, 12).map(this.tile, this);
       return this.search(from, function(ti) {
         if (style.leash && (this.apart(ti, htile) > style.leash))
           return false;
@@ -2162,7 +2234,7 @@ Gauntlet = function() {
           if (this.linedUp(ti, prey[i]))
             return true;
         return false;
-      }, 12, this.dist, this.prev);
+      }, style.leash ? 12 : Infinity, this.dist, this.prev); // with no leash it will go as far as it takes for a kill
     },
 
     linedUp: function(ti, target) {
@@ -2240,9 +2312,55 @@ Gauntlet = function() {
     // shooting
     //-------------------------------------------------------------------------
 
+    // what to fire at, as a direction to face, or null. It looks for a target every `notice` frames
+    // and keeps firing at what it saw in between, and with `aim` below 1 some targets get a shot
+    // a direction off
+    target: function(me, human, frame, map) {
+      var style = this.style, best, dx, dy;
+
+      if (frame >= this.look) {
+        this.look = frame + style.notice;
+        best = this.scan(me, human, frame, map);
+      }
+      else {
+        best = (this.shooting && this.shooting.active) ? this.shooting : null;
+      }
+
+      // shots that never seem to land (it keeps missing a moving target, say) mean it should get on with something else
+      if (best !== this.shooting) {
+        this.shooting = best;
+        this.since    = frame;
+        this.health   = best && best.health;
+        this.miss     = (!best || (this.random() < style.aim)) ? 0 : (this.random() < 0.5 ? -1 : 1);
+      }
+      else if (best && (best.health < this.health)) {
+        this.since  = frame;
+        this.health = best.health;
+      }
+      else if (best && ((frame - this.since) > BUDDY_BORED)) {
+        this.ignore.push(best, frame + 3*FPS);
+        this.shooting = null;
+        return null;
+      }
+
+      if (!best)
+        return null;
+      dx = best.x - me.x;
+      dy = best.y - me.y;
+      if (this.miss) {         // turn the aim 45 degrees one way or the other
+        this.aim.dx = (this.miss > 0) ? (dx - dy) : (dx + dy);
+        this.aim.dy = (this.miss > 0) ? (dx + dy) : (dy - dx);
+      }
+      else {
+        this.aim.dx = dx;
+        this.aim.dy = dy;
+      }
+      return this.aim;
+    },
+
     // the nearest monster or generator it cares about that is lined up in one of the eight
     // firing directions, in range, with nothing in the way, or null
-    target: function(me, human, frame, map) {
+    scan: function(me, human, frame, map) {
       var style    = this.style,
           present  = human && human.active(),
           mx       = me.x + TILE/2,
@@ -2269,27 +2387,7 @@ Gauntlet = function() {
         bestd = d;
       }
 
-      // shots that never seem to land (it keeps missing a moving target, say) mean it should get on with something else
-      if (best !== this.shooting) {
-        this.shooting = best;
-        this.since    = frame;
-        this.health   = best && best.health;
-      }
-      else if (best && (best.health < this.health)) {
-        this.since  = frame;
-        this.health = best.health;
-      }
-      else if (best && ((frame - this.since) > BUDDY_BORED)) {
-        this.ignore.push(best, frame + 3*FPS);
-        this.shooting = null;
-        return null;
-      }
-
-      if (!best)
-        return null;
-      this.aim.dx = dx = best.x + TILE/2 - mx;
-      this.aim.dy = dy = best.y + TILE/2 - my;
-      return this.aim;
+      return best;
     },
 
     ignored: function(e, frame) {

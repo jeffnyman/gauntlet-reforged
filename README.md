@@ -74,7 +74,7 @@ Append to the page URL, e.g. `?level=8&hard=1&potions=4`. Boolean flags accept
 | `?floor=N` | Force a floor tileset, `1`–`9` |
 | `?music=ID` | Force a track: `lostcorridors`, `bloodyhalo`, `citrinitas`, `fleshandsteel`, `mountingassault`, `phantomdrone`, `thebeginning`, `warbringer` |
 | `?heap=1` | Logs JS heap usage to the console |
-| `?buddy=NAME` | Adds a computer-controlled second player with that persona: `guardian`, `foodhog` or `wanderer` (see Buddy below) |
+| `?buddy=NAME` | Adds a computer-controlled second player with that persona, such as `guardian` or `rookie` (see Buddy below for the list) |
 | `?buddyas=NAME` | Which character the buddy plays. Defaults to the first one free, Valkyrie first |
 
 ## Console helpers
@@ -110,9 +110,15 @@ Each persona is a set of traits, defined in the `BUDDY` table near the top of
 | `guardian` | Stays within 4 tiles, shoots anything that comes near you, and uses a potion when you are swarmed | The baseline: does a helpful second player work at all? |
 | `foodhog` | Eats every bit of food and health it can reach, needed or not | Health balance when one player gets none of the food |
 | `wanderer` | Roams the parts of the map farthest from you | The shared camera at its widest zoom |
+| `gloryhog` | Goes hunting on its own, steals kills, and grabs the gold | Score attribution, and the best-score pick at the end of a game |
+| `rusher` | Heads for the exit straight away | The rule that a level ends only when every player has exited or died |
+| `freeloader` | Never fights, and keeps to the side of you away from the monsters | Whether monsters choose targets sensibly when one player is passive |
+| `panicker` | Uses a potion the moment a monster comes near, and picks up every potion it can | Potion range and waste |
+| `rookie` | Slow to react, often aims a direction off, and walks straight over treasure, poison and keys included | Damage, deaths, and one player dying while the other carries on |
 
-Whatever the persona, the buddy leaves keys, potions, gold and poison alone, never opens a
-door, and heads for an exit once you have exited or died. Shots stop on other players
+Unless its persona says otherwise, the buddy leaves keys, potions, gold and poison alone.
+It never opens a door, and it heads for an exit once you have exited or died. The rookie's
+slips come from its own fixed-seed dice rather than `Math.random`, so they replay too. Shots stop on other players
 without hurting them, so it won't fire when you are in the line of fire.
 
 ## Levels
