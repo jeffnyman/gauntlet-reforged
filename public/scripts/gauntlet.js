@@ -120,8 +120,27 @@ Gauntlet = function() {
         WALL:         Game.qsNumber("wall"),
         FLOOR:        Game.qsNumber("floor"),
         MUSIC:        Game.qsValue("music"),
-        HEAP:         Game.qsBool("heap")
+        HEAP:         Game.qsBool("heap"),
+        BUDDY:        Game.qsValue("buddy"),
+        BUDDYAS:      Game.qsValue("buddyas")
       };
+
+  // personas for the buddy, a computer-controlled second player for testing (see THE BUDDY below).
+  // Distances are in tiles.
+  //   leash    - how far the human can get before it walks back over (0 = never comes back)
+  //   engage   - shoots monsters within this many tiles of the human, i.e. guards them
+  //   defend   - shoots monsters within this many tiles of itself, whatever the human is doing
+  //   hunt     - walks over to line up a shot on a monster near the human, instead of waiting for one to line up
+  //   food     - 'need' eats only below `hungry` health, 'always' eats everything it can reach, 'never' leaves it alone
+  //   hungry   - health below which a 'need' eater goes looking for food
+  //   wander   - heads for whichever reachable tile is farthest from the human
+  //   swarm    - monsters within 4 tiles of the human that make it use a potion (0 = never uses one)
+  //   reaction - frames between decisions (aiming is checked every frame)
+  var BUDDY = {
+    GUARDIAN: { leash: 4, engage: 7, defend: 3, hunt: true,  food: 'need',   hungry: 150, wander: false, swarm: 8, reaction: 6 },
+    FOODHOG:  { leash: 8, engage: 0, defend: 4, hunt: false, food: 'always', hungry: 0,   wander: false, swarm: 0, reaction: 6 },
+    WANDERER: { leash: 0, engage: 0, defend: 4, hunt: false, food: 'need',   hungry: 150, wander: true,  swarm: 0, reaction: 6 }
+  };
 
   //---------------------------------------------------------------------------
 
@@ -482,7 +501,7 @@ Gauntlet = function() {
         this.hard        = Game.qsBool("hard") || (this.storage[STORAGE.HARD] === "true");
         this.images      = resources.images;
         this.players     = [];
-        this.controllers = { p1Keyboard: null, p2Keyboard: null, gamepads: {} };
+        this.controllers = { p1Keyboard: null, p2Keyboard: null, gamepads: {}, bot: null };
         PLAYERS.forEach(function(type) { type.instance = new Player(); });
         this.viewport    = new Viewport();
         this.scoreboard  = new Scoreboard(cfg.levels[this.loadLevel()], this.loadHighScore(), this.loadHighWho());
@@ -511,6 +530,8 @@ Gauntlet = function() {
 
     onstart: function(event, previous, current, type, nlevel, controller) {
       this.joinPlayer(type, controller);
+      if (DEBUG.BUDDY)
+        this.addBuddy(DEBUG.BUDDY, DEBUG.BUDDYAS);
       this.load(to.number(nlevel, this.loadLevel()));
     },
 
@@ -532,6 +553,10 @@ Gauntlet = function() {
       this.saveLevel(map.nlevel);
       this.saveHighScore(); // a convenient place to save in-progress high scores without writing to local storage at 60fps
       publish(EVENT.START_LEVEL, map);
+      // every player has just been put on the start tile, and overlapping players block each
+      // other's every move, so everyone after the first steps aside the way a mid-run join does
+      for (var n = 1, max = this.players.length ; n < max ; n++)
+        this.players[n].spawnNear(map, this.players[0]);
       if (map.level.help)
         this.help(map.level.help);
     },
@@ -627,6 +652,8 @@ Gauntlet = function() {
 
     controllerTaken: function(controller) {
       if (!controller) return false;
+      if (controller.kind === 'bot')
+        return !!this.controllers.bot;
       return controller.kind === 'gamepad'
         ? !!this.controllers.gamepads[controller.index]
         : !!this.controllers[controller.slot + 'Keyboard'];
@@ -634,7 +661,9 @@ Gauntlet = function() {
 
     assignController: function(controller, player) {
       if (!controller) return;
-      if (controller.kind === 'gamepad')
+      if (controller.kind === 'bot')
+        this.controllers.bot = player;
+      else if (controller.kind === 'gamepad')
         this.controllers.gamepads[controller.index] = player;
       else
         this.controllers[controller.slot + 'Keyboard'] = player;
@@ -642,11 +671,42 @@ Gauntlet = function() {
 
     releaseController: function(player) {
       if (!player.controller) return;
-      if (player.controller.kind === 'gamepad')
+      if (player.controller.kind === 'bot')
+        this.controllers.bot = null;
+      else if (player.controller.kind === 'gamepad')
         delete this.controllers.gamepads[player.controller.index];
       else
         this.controllers[player.controller.slot + 'Keyboard'] = null;
       player.controller = null;
+    },
+
+    // joins the buddy, a computer-controlled second player, with one of the BUDDY personas.
+    // `name` picks the character (otherwise the first free one, valkyrie first), and `traits`
+    // overrides any of the persona's traits, e.g. game.addBuddy('guardian', 'elf', { leash: 10 })
+    addBuddy: function(persona, name, traits) {
+      var style = BUDDY[(persona || 'guardian').toUpperCase()],
+          order = [ PLAYER.VALKYRIE, PLAYER.ELF, PLAYER.WIZARD, PLAYER.WARRIOR ],
+          type  = name ? PLAYER[name.toUpperCase()] : null,
+          key, n;
+      if (!style)
+        return console.log("unknown buddy '" + persona + "', try one of: " + Object.keys(BUDDY).join(', ').toLowerCase());
+      if (this.controllers.bot)
+        return console.log("there is already a buddy playing");
+      for (n = 0 ; !type && n < order.length ; n++)
+        if (!order[n].instance.joined)
+          type = order[n];
+      if (!type || type.instance.joined)
+        return console.log("no free character for the buddy");
+      style = Object.assign({}, style);
+      for (key in (traits || {}))
+        style[key] = traits[key];
+      console.log("buddy joined: " + persona.toLowerCase() + " as the " + type.name);
+      return this.joinPlayer(type, { kind: 'bot', brain: new Buddy(style) });
+    },
+
+    removeBuddy: function() {
+      if (this.controllers.bot)
+        this.removePlayer(this.controllers.bot);
     },
 
     //-----------------------
@@ -655,8 +715,11 @@ Gauntlet = function() {
 
     update: function(frame) {
       if (this.canUpdate) {
-        for (var n = 0, max = this.players.length ; n < max ; n++)
+        for (var n = 0, max = this.players.length ; n < max ; n++) {
+          if (this.players[n].controller && this.players[n].controller.brain && this.is('playing'))
+            this.players[n].controller.brain.think(this.players[n], frame, this.players, this.map);
           this.players[n].update(frame, this.players, this.map, this.viewport);
+        }
         this.map.update(      frame, this.players, this.map, this.viewport);
         this.viewport.update( frame, this.players, this.map, this.viewport);
       }
@@ -678,9 +741,13 @@ Gauntlet = function() {
     // PUB/SUB EVENT HANDLING
     //------------------------
 
+    // a death can also finish the level: when everyone else has already exited, nobody is left
+    // to publish PLAYER_EXIT, so without the check here the level would never end
     onPlayerDeath: function() {
       if (this.players.length && this.players.every(function(p) { return p.dead; }))
         this.lose();
+      else
+        this.checkLevelDone();
     },
     onPlayerNuke:   function(player) { this.map.nuke(this.viewport, player); },
     onFxFinished:   function(fx)     { this.map.remove(fx); },
@@ -706,6 +773,10 @@ Gauntlet = function() {
     // never publish PLAYER_EXIT)
     onPlayerExit: function(player) {
       player.exited = true;
+      this.checkLevelDone();
+    },
+
+    checkLevelDone: function() {
       if (this.players.every(function(p) { return p.dead || p.exited; })) {
         if (this.map.last)
           this.win();
@@ -967,20 +1038,22 @@ Gauntlet = function() {
           i, ni;
 
       // have to check for any player FIRST, so even if a player is near a wall or other monster they will still get hit (otherwise its possible to use monsters as semi-shields against other monsters)
+      // a player who is leaving through an exit (or has left) is no longer in the way - left solid, they
+      // stand in front of the exit and can stop everyone else reaching it
       for (var pn = 0, pmax = game.players.length ; pn < pmax ; pn++) {
         var p = game.players[pn];
-        if ((p != ignore) && overlapEntity(x, y, w, h, p))
+        if ((p != ignore) && !p.exiting && overlapEntity(x, y, w, h, p))
           return p;
       }
 
-      // now loop again checking for walls and other entities
+      // now loop again checking for walls and other entities (players sit in cells too, but the loop above already decided about them)
       for(c = 0 ; c < nc ; c++) {
         cell = cells[c];
         if (cell.wall !== undefined)
           return true;
         for(i = 0, ni = cell.occupied.length ; i < ni ; i++) {
           item = cell.occupied[i];
-          if ((item != ignore) && !set_contains(checked, item)) {
+          if ((item != ignore) && !item.player && !set_contains(checked, item)) {
             set_add(checked, item);
             if (overlapEntity(x, y, w, h, item))
               return item;
@@ -1829,6 +1902,430 @@ Gauntlet = function() {
         this.frame = this.type.sx + this.dir + (8 * animate(frame, this.type.fpf, this.type.frames));
       else
         this.frame = this.type.sx + this.dir;
+    }
+
+  });
+
+  //===========================================================================
+  // THE BUDDY
+  //  - a computer-controlled second player, so one tester can try the parts
+  //    of the game that need two people. It presses the same controls a person
+  //    would (moveUp, fire, nuke...) and gets nothing a person doesn't, and it
+  //    never calls Math.random, so a seeded run with a buddy still replays
+  //    exactly. Its personas are the BUDDY table at the top of the file.
+  //===========================================================================
+
+  var BUDDY_RANGE = 8*TILE, // how far away a lined-up monster is worth a shot
+      BUDDY_ALIGN = 12,     // pixels of slack when deciding a monster is lined up
+      BUDDY_STUCK = 20,     // frames without moving before it gives up on the next tile
+      BUDDY_SHOT  = TILE/6, // half the width of a shot, for checking its flight path
+      BUDDY_BORED = 1.5*FPS; // frames shooting at one target without hurting it before it gives up on that target
+
+  var Buddy = Class.create({
+
+    initialize: function(style) {
+      this.style = style;
+      this.map   = null;
+      this.aim   = { dx: 0, dy: 0 }; // re-used every frame to avoid GC allocations
+    },
+
+    // called once per frame, before the buddy's own Player.update, to set its controls
+    think: function(me, frame, players, map) {
+
+      if (map !== this.map)
+        this.reset(map);
+
+      if (!me.active())
+        return this.press(me, null, false);
+
+      var human = this.human(players),
+          aim   = this.target(me, human, frame, map);
+
+      if (aim)
+        return this.press(me, aim, true); // face it and fire (a player can't move while firing)
+
+      if (frame >= this.next) {
+        this.next = frame + this.style.reaction;
+        this.plan(me, human, frame);
+      }
+
+      this.press(me, this.steer(me, frame), false);
+    },
+
+    press: function(me, d, fire) {
+      var slack = fire ? BUDDY_ALIGN : 2;
+      me.moveUp(   !!d && (d.dy < -slack));
+      me.moveDown( !!d && (d.dy >  slack));
+      me.moveLeft( !!d && (d.dx < -slack));
+      me.moveRight(!!d && (d.dx >  slack));
+      me.fire(fire);
+    },
+
+    human: function(players) {
+      for (var n = 0, max = players.length ; n < max ; n++)
+        if (!players[n].controller || players[n].controller.kind !== 'bot')
+          return players[n];
+      return null;
+    },
+
+    reset: function(map) {
+      var n = map.tw * map.th, i, cell;
+      this.map   = map;
+      this.tw    = map.tw;
+      this.th    = map.th;
+      this.wall  = new Uint8Array(n);  // static: walls, and the black outside of the map
+      this.block = new Uint8Array(n);  // per plan: walls + doors, generators, exits and treasure it shouldn't touch
+      this.dist  = new Int32Array(n);  // steps from the buddy
+      this.prev  = new Int32Array(n);  // the tile each step came from
+      this.far   = new Int32Array(n);  // steps from the human (for wandering)
+      this.queue = new Int32Array(n);
+      for (i = 0 ; i < n ; i++) {
+        cell = map.cells[i];
+        this.wall[i] = (!cell || (cell.wall !== undefined) || cell.nothing) ? 1 : 0;
+      }
+      this.path     = [];
+      this.avoid    = {};  // tile -> frame it can be tried again, after getting stuck on it
+      this.next     = 0;
+      this.stuck    = 0;
+      this.lastx    = null;
+      this.lasty    = null;
+      this.returning = false;
+      this.wanderTo  = -1;
+      this.wanderEnd = 0;
+      this.shooting  = null;
+      this.ignore    = [];  // [ target, frame it can be shot at again, ... ]
+    },
+
+    //-------------------------------------------------------------------------
+    // tiles
+    //-------------------------------------------------------------------------
+
+    // the tile under the middle of an entity's collision box (a player's box is the lower part of its tile)
+    tile: function(e)        { return p2t(e.x + TILE/2) + (p2t(e.y + TILE/2 + 4) * this.tw); },
+    apart: function(t1, t2)  { var tw = this.tw; return Math.max(Math.abs((t1 % tw) - (t2 % tw)), Math.abs(Math.floor(t1/tw) - Math.floor(t2/tw))); },
+    tiles: function(e1, e2)  { return Math.max(Math.abs(e1.x - e2.x), Math.abs(e1.y - e2.y)) / TILE; },
+
+    holds: function(ti, test) {
+      var occupied = this.map.cells[ti].occupied, n, max;
+      for (n = 0, max = occupied.length ; n < max ; n++)
+        if (occupied[n].active && test(occupied[n]))
+          return true;
+      return false;
+    },
+
+    // food and health, never poison. Keys, potions and gold are left for the human.
+    wants: function(treasure, me) {
+      return !!treasure.type.health && ((this.style.food === 'always') || ((this.style.food === 'need') && (me.health < this.style.hungry)));
+    },
+
+    blockout: function(me, human, frame, leaving) {
+      var block = this.block, entities = this.map.entities, n, max, e, ti, key;
+      block.set(this.wall);
+      for (n = 0, max = entities.length ; n < max ; n++) {
+        e = entities[n];
+        if (!e.active || e.monster || e.temporal)
+          continue;
+        ti = p2t(e.x) + (p2t(e.y) * this.tw);
+        if (e.exit === true)
+          block[ti] = leaving ? 0 : 1;
+        else if (e.treasure)
+          block[ti] = this.wants(e, me) ? 0 : 1;
+        else
+          block[ti] = 1; // doors and generators
+      }
+      if (human && human.active())
+        block[this.tile(human)] = 1;
+      for (key in this.avoid) {
+        if (this.avoid[key] > frame)
+          block[key] = 1;
+        else
+          delete this.avoid[key];
+      }
+    },
+
+    // breadth first out from `from`, eight ways without cutting a corner between two blocked
+    // tiles (the same moves the flow field allows), up to `depth` steps. Returns the first tile
+    // `goal` accepts, or -1. With no goal it just fills `dist` (and `prev`) for every reachable tile.
+    search: function(from, goal, depth, dist, prev) {
+      var tw = this.tw, th = this.th, block = this.block, queue = this.queue,
+          head = 0, tail = 0, ti, tx, ty, nx, ny, ni, i;
+      dist.fill(-1);
+      dist[from] = 0;
+      if (prev)
+        prev[from] = -1;
+      queue[tail++] = from;
+      while (head < tail) {
+        ti = queue[head++];
+        if (goal && goal.call(this, ti))
+          return ti;
+        if (dist[ti] >= depth)
+          continue;
+        tx = ti % tw;
+        ty = (ti - tx) / tw;
+        for (i = 0 ; i < 8 ; i++) {
+          nx = tx + FLOW_DX[i];
+          ny = ty + FLOW_DY[i];
+          if (nx < 0 || ny < 0 || nx >= tw || ny >= th)
+            continue;
+          ni = nx + (ny * tw);
+          if (block[ni] || (dist[ni] >= 0))
+            continue;
+          if (i >= 4 && (block[nx + (ty * tw)] || block[tx + (ny * tw)]))
+            continue;
+          dist[ni] = dist[ti] + 1;
+          if (prev)
+            prev[ni] = ti;
+          queue[tail++] = ni;
+        }
+      }
+      return -1;
+    },
+
+    route: function(from, goal) {
+      this.path.length = 0;
+      for (var ti = goal ; (ti !== from) && (ti >= 0) ; ti = this.prev[ti])
+        this.path.unshift(ti);
+    },
+
+    //-------------------------------------------------------------------------
+    // deciding where to go
+    //-------------------------------------------------------------------------
+
+    plan: function(me, human, frame) {
+
+      var style   = this.style,
+          from    = this.tile(me),
+          present = human && human.active(),
+          goal    = -1,
+          apart;
+
+      this.blockout(me, human, frame, !present);
+
+      if (style.swarm && me.potions && present && (this.crowd(human, 4) >= style.swarm))
+        me.nuke();
+
+      if (!present) // the human is dead or on the way out, so head for an exit
+        goal = this.search(from, function(ti) { return this.holds(ti, function(e) { return e.exit === true; }); }, Infinity, this.dist, this.prev);
+      else if ((style.food === 'always') || ((style.food === 'need') && (me.health < style.hungry)))
+        goal = this.search(from, function(ti) { return this.holds(ti, function(e) { return e.treasure && !!e.type.health; }); }, 40, this.dist, this.prev);
+
+      if ((goal < 0) && present) {
+        apart = this.tiles(me, human);
+        if (style.leash && (apart > style.leash))
+          this.returning = true;
+        else if (apart <= Math.max(1, Math.floor(style.leash/2)))
+          this.returning = false;
+
+        if (this.returning)
+          goal = this.near(from, human);
+        else if (style.hunt)
+          goal = this.huntSpot(from, human);
+        else if (style.wander)
+          goal = this.wanderSpot(from, human, frame);
+      }
+
+      if (goal < 0)
+        this.path.length = 0; // nothing to do, or nowhere it can get to: stay put
+      else
+        this.route(from, goal);
+    },
+
+    near: function(from, human) {
+      var target = this.tile(human), r = Math.max(1, Math.floor(this.style.leash/2));
+      return this.search(from, function(ti) { return this.apart(ti, target) <= r; }, Infinity, this.dist, this.prev);
+    },
+
+    crowd: function(human, r) {
+      var entities = this.map.entities, count = 0, n, max, e;
+      for (n = 0, max = entities.length ; n < max ; n++) {
+        e = entities[n];
+        if (e.active && e.monster && (this.tiles(e, human) <= r))
+          count++;
+      }
+      return count;
+    },
+
+    // a tile within the leash from which a monster near the human is lined up for a shot
+    huntSpot: function(from, human) {
+      var style = this.style, entities = this.map.entities, prey = [], htile = this.tile(human), n, max, e;
+      for (n = 0, max = entities.length ; n < max ; n++) {
+        e = entities[n];
+        if (e.active && e.monster && e.type.canbeshot && (this.tiles(e, human) <= style.engage))
+          prey.push(this.tile(e));
+      }
+      if (!prey.length)
+        return -1;
+      return this.search(from, function(ti) {
+        if (style.leash && (this.apart(ti, htile) > style.leash))
+          return false;
+        for (var i = 0 ; i < prey.length ; i++)
+          if (this.linedUp(ti, prey[i]))
+            return true;
+        return false;
+      }, 12, this.dist, this.prev);
+    },
+
+    linedUp: function(ti, target) {
+      var tw = this.tw,
+          dx = (target % tw) - (ti % tw),
+          dy = Math.floor(target/tw) - Math.floor(ti/tw),
+          d  = Math.max(Math.abs(dx), Math.abs(dy)),
+          sx = dx ? dx/Math.abs(dx) : 0,
+          sy = dy ? dy/Math.abs(dy) : 0,
+          i;
+      if ((d < 1) || (d > 7) || !(!dx || !dy || (Math.abs(dx) === Math.abs(dy))))
+        return false;
+      for (i = 1 ; i < d ; i++)
+        if (this.block[ti + (i * sx) + (i * sy * tw)])
+          return false;
+      return true;
+    },
+
+    // the reachable tile farthest (in walking steps) from the human, kept for up to 10 seconds. The
+    // next pick skips the area around the last one, so it roams between far corners instead of camping
+    wanderSpot: function(from, human, frame) {
+      var n = this.tw * this.th, best = -1, last = this.wanderTo, ti;
+      if ((last >= 0) && (frame < this.wanderEnd) && (last !== from) && !this.block[last])
+        return this.search(from, function(ti) { return ti === last; }, Infinity, this.dist, this.prev);
+      this.search(this.tile(human), null, Infinity, this.far, null);
+      this.search(from, null, Infinity, this.dist, this.prev);
+      for (ti = 0 ; ti < n ; ti++)
+        if ((this.dist[ti] >= 0) && ((last < 0) || (this.apart(ti, last) > 8)) && ((best < 0) || (this.far[ti] > this.far[best])))
+          best = ti;
+      this.wanderTo  = best;
+      this.wanderEnd = frame + 10*FPS;
+      return best;
+    },
+
+    //-------------------------------------------------------------------------
+    // walking the path
+    //-------------------------------------------------------------------------
+
+    steer: function(me, frame) {
+      var cx = me.x + TILE/2, cy = me.y + TILE/2 + 4, next, tx, ty;
+      while (this.path.length) {
+        next = this.path[0];
+        tx   = ((next % this.tw) * TILE) + TILE/2;
+        ty   = (Math.floor(next / this.tw) * TILE) + TILE/2;
+        if ((Math.abs(tx - cx) < 6) && (Math.abs(ty - cy) < 6))
+          this.path.shift();
+        else
+          break;
+      }
+      if (!this.path.length) {
+        this.stuck = 0;
+        return null;
+      }
+      // something (the human, a monster, a corner) is in the way, so stop trying that tile for a while
+      if ((me.x === this.lastx) && (me.y === this.lasty)) {
+        if (++this.stuck > BUDDY_STUCK) {
+          this.avoid[next] = frame + 2*FPS;
+          this.stuck       = 0;
+          this.next        = frame; // replan right away
+          this.path.length = 0;
+          return null;
+        }
+      }
+      else {
+        this.stuck = 0;
+      }
+      this.lastx  = me.x;
+      this.lasty  = me.y;
+      this.aim.dx = tx - cx;
+      this.aim.dy = ty - cy;
+      return this.aim;
+    },
+
+    //-------------------------------------------------------------------------
+    // shooting
+    //-------------------------------------------------------------------------
+
+    // the nearest monster or generator it cares about that is lined up in one of the eight
+    // firing directions, in range, with nothing in the way, or null
+    target: function(me, human, frame, map) {
+      var style    = this.style,
+          present  = human && human.active(),
+          mx       = me.x + TILE/2,
+          my       = me.y + TILE/2,
+          entities = map.entities,
+          best = null, bestd = BUDDY_RANGE, n, max, e, dx, dy, d;
+
+      for (n = 0, max = entities.length ; n < max ; n++) {
+        e = entities[n];
+        if (!e.active || !(e.generator || (e.monster && e.type.canbeshot)))
+          continue;
+        if (!((this.tiles(e, me) <= style.defend) || (present && (this.tiles(e, human) <= style.engage))))
+          continue;
+        dx = e.x + TILE/2 - mx;
+        dy = e.y + TILE/2 - my;
+        d  = Math.max(Math.abs(dx), Math.abs(dy));
+        if (d >= bestd)
+          continue;
+        if (!((Math.abs(dx) < BUDDY_ALIGN) || (Math.abs(dy) < BUDDY_ALIGN) || (Math.abs(Math.abs(dx) - Math.abs(dy)) < BUDDY_ALIGN)))
+          continue;
+        if (this.ignored(e, frame) || !this.clearShot(mx, my, dx, dy, human, map))
+          continue;
+        best  = e;
+        bestd = d;
+      }
+
+      // shots that never seem to land (it keeps missing a moving target, say) mean it should get on with something else
+      if (best !== this.shooting) {
+        this.shooting = best;
+        this.since    = frame;
+        this.health   = best && best.health;
+      }
+      else if (best && (best.health < this.health)) {
+        this.since  = frame;
+        this.health = best.health;
+      }
+      else if (best && ((frame - this.since) > BUDDY_BORED)) {
+        this.ignore.push(best, frame + 3*FPS);
+        this.shooting = null;
+        return null;
+      }
+
+      if (!best)
+        return null;
+      this.aim.dx = dx = best.x + TILE/2 - mx;
+      this.aim.dy = dy = best.y + TILE/2 - my;
+      return this.aim;
+    },
+
+    ignored: function(e, frame) {
+      for (var n = 0 ; n < this.ignore.length ; n += 2) {
+        if (this.ignore[n+1] <= frame) {
+          this.ignore.splice(n, 2);
+          n -= 2;
+        }
+        else if (this.ignore[n] === e) {
+          return true;
+        }
+      }
+      return false;
+    },
+
+    // walks a shot's flight path and checks it would not stop on a wall, a door, treasure, an exit
+    // or the human (players block each other's shots, even though they can't hurt each other)
+    clearShot: function(x, y, dx, dy, human, map) {
+      var steps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 4), s = BUDDY_SHOT, i, n, k, px, py, cx, cy, cell, occupied;
+      for (i = 1 ; i < steps ; i++) {
+        px = x + (dx * i / steps);
+        py = y + (dy * i / steps);
+        if (human && overlapEntity(px - s, py - s, 2*s, 2*s, human))
+          return false;
+        for (n = 0 ; n < 4 ; n++) {
+          cx   = px + ((n & 1) ? s : -s);
+          cy   = py + ((n & 2) ? s : -s);
+          cell = map.cells[p2t(cx) + (p2t(cy) * this.tw)];
+          if (!cell || (cell.wall !== undefined))
+            return false;
+          for (occupied = cell.occupied, k = 0 ; k < occupied.length ; k++)
+            if (occupied[k].active && (occupied[k].door || occupied[k].treasure || (occupied[k].exit === true)))
+              return false;
+        }
+      }
+      return true;
     }
 
   });

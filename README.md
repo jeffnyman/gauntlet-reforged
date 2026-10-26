@@ -74,6 +74,8 @@ Append to the page URL, e.g. `?level=8&hard=1&potions=4`. Boolean flags accept
 | `?floor=N` | Force a floor tileset, `1`–`9` |
 | `?music=ID` | Force a track: `lostcorridors`, `bloodyhalo`, `citrinitas`, `fleshandsteel`, `mountingassault`, `phantomdrone`, `thebeginning`, `warbringer` |
 | `?heap=1` | Logs JS heap usage to the console |
+| `?buddy=NAME` | Adds a computer-controlled second player with that persona: `guardian`, `foodhog` or `wanderer` (see Buddy below) |
+| `?buddyas=NAME` | Which character the buddy plays. Defaults to the first one free, Valkyrie first |
 
 ## Console helpers
 
@@ -86,7 +88,32 @@ game.debugGrid();      // toggle the tile grid
 game.debugWall();      // cycle wall tilesets; pass true to cycle backwards
 game.debugFloor();     // cycle floor tilesets; pass true to cycle backwards
 game.resetLevel();     // clear the saved checkpoint, keep the high score
+game.addBuddy('guardian');                     // add a buddy mid-run (see Buddy below)
+game.addBuddy('foodhog', 'elf', { leash: 3 }); // pick the character, and override any trait
+game.removeBuddy();
 ```
+
+## Buddy
+
+The buddy is a computer-controlled second player, so one tester can try the parts of the
+game that need two people: a second player joining, the shared camera, one player dying
+while the other carries on, two players reaching the exit at different times. It plays
+through the same controls a person would, with the same speed, health drain and weapons,
+and gets nothing a person doesn't. It also never touches `Math.random`, so a seeded run
+with a buddy replays exactly.
+
+Each persona is a set of traits, defined in the `BUDDY` table near the top of
+`public/scripts/gauntlet.js`:
+
+| Persona | Behaves like | Good for testing |
+|---|---|---|
+| `guardian` | Stays within 4 tiles, shoots anything that comes near you, and uses a potion when you are swarmed | The baseline: does a helpful second player work at all? |
+| `foodhog` | Eats every bit of food and health it can reach, needed or not | Health balance when one player gets none of the food |
+| `wanderer` | Roams the parts of the map farthest from you | The shared camera at its widest zoom |
+
+Whatever the persona, the buddy leaves keys, potions, gold and poison alone, never opens a
+door, and heads for an exit once you have exited or died. Shots stop on other players
+without hurting them, so it won't fire when you are in the line of fire.
 
 ## Levels
 
